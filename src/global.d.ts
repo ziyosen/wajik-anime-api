@@ -5,6 +5,7 @@ interface IAppConfig {
 
 interface IAnimeConfig {
   baseUrl: string;
+  apiBaseUrl?: string;
 }
 
 interface IPagination {

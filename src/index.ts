@@ -6,6 +6,7 @@ import otakudesuRouter from "@routes/otakudesu.routes.js";
 import samehadakuRouter from "@routes/samehadaku.routes.js";
 import kuramanimeRouter from "@routes/kuramanime.routes.js";
 import setPayload from "@helpers/setPayload.js";
+import { probeSources } from "@helpers/sourceStatus.js";
 import cors from "cors";
 
 const { PORT } = appConfig;
@@ -30,6 +31,20 @@ app.get("/", (req, res) => {
       pathParams: [],
       queryParams: [],
     },
+    {
+      method: "GET",
+      path: "/samehadaku",
+      description: "Samehadaku (engine bellonime ditampung wajik)",
+      pathParams: [],
+      queryParams: [],
+    },
+    {
+      method: "GET",
+      path: "/sumber/status",
+      description: "Status jangkauan tiap sumber dari server ini",
+      pathParams: [],
+      queryParams: [],
+    },
   ];
 
   res.json(
@@ -37,6 +52,15 @@ app.get("/", (req, res) => {
       data: { routes },
     })
   );
+});
+
+app.get("/sumber/status", async (req, res, next) => {
+  try {
+    const sources = await probeSources();
+    res.json(setPayload(res, { data: { sources } }));
+  } catch (err) {
+    next(err);
+  }
 });
 
 app.use("/otakudesu", otakudesuRouter);
