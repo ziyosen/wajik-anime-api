@@ -5,6 +5,7 @@ import errorHandler from "./middlewares/errorHandler.js";
 import otakudesuRouter from "./routes/otakudesu.routes.js";
 import samehadakuRouter from "./routes/samehadaku.routes.js";
 import kuramanimeRouter from "./routes/kuramanime.routes.js";
+import catalogRouter from "./routes/catalog.routes.js";
 import setPayload from "./helpers/setPayload.js";
 import { probeSources } from "./helpers/sourceStatus.js";
 import cors from "cors";
@@ -42,6 +43,13 @@ app.get("/", (req, res) => {
             pathParams: [],
             queryParams: [],
         },
+        {
+            method: "GET",
+            path: "/katalog",
+            description: "Katalog gabungan anti-dobel lintas sumber",
+            pathParams: [],
+            queryParams: [],
+        },
     ];
     res.json(setPayload(res, {
         data: { routes },
@@ -59,6 +67,7 @@ app.get("/sumber/status", async (req, res, next) => {
 app.use("/otakudesu", otakudesuRouter);
 app.use("/kuramanime", kuramanimeRouter);
 app.use("/samehadaku", samehadakuRouter);
+app.use("/katalog", catalogRouter);
 app.use(errorHandler);
 app.listen(PORT, () => {
     console.log(`server is running on http://localhost:${PORT}`);

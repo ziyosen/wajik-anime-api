@@ -1,0 +1,13 @@
+import { Router } from "express";
+import { serverCache } from "@middlewares/cache.js";
+import catalogController from "@controllers/catalog.controller.js";
+
+const catalogRouter = Router();
+
+catalogRouter.get("/", catalogController.getRoot);
+catalogRouter.get("/terbaru", serverCache(10), catalogController.latest);
+catalogRouter.get("/search", serverCache(10), catalogController.search);
+catalogRouter.get("/ongoing", serverCache(10), catalogController.ongoing);
+catalogRouter.get("/completed", serverCache(10), catalogController.completed);
+
+export default catalogRouter;

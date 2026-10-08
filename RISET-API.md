@@ -76,3 +76,20 @@ Agregator/UI harus memakai ini untuk fallback, bukan menganggap kosong.
   prioritas sumber, supaya ada fallback bila satu sumber mati.
 - Indeks berkala + cache untuk home/jadwal/pencarian; detail live
   dengan cache TTL.
+
+## Union katalog v1 (2026-10-08)
+
+Endpoint baru di `/katalog`:
+
+- `GET /katalog/terbaru` — daftar terbaru Samehadaku.li digabung
+  referensi v2/Bellonime bila judulnya sama.
+- `GET /katalog/search?q=...` — pencarian .li digabung hasil v2 yang
+  relevan; judul sama tampil sekali dengan `sources[]`.
+- `GET /katalog/ongoing` dan `/katalog/completed` — daftar .li dengan
+  referensi v2 bila judulnya sama.
+
+Kunci kanonik v1 membersihkan judul lalu memisahkan penanda
+`Season N`, `Nth Season`, `S<N>`, dan `Part N`. Uji nyata sebelumnya:
+100 kartu .li dan 791 kartu v2 menghasilkan 31 tumpang tindih,
+termasuk variasi `4th Season` vs `Season 4` dan `2nd Season` vs `S2`.
+Detail gabungan per episode dan alias JP/EN/ID masih tahap berikutnya.
