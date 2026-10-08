@@ -4,6 +4,7 @@ import express from "express";
 import errorHandler from "./middlewares/errorHandler.js";
 import otakudesuRouter from "./routes/otakudesu.routes.js";
 import samehadakuRouter from "./routes/samehadaku.routes.js";
+import animekiidRouter from "./routes/animekiid.routes.js";
 import kuramanimeRouter from "./routes/kuramanime.routes.js";
 import catalogRouter from "./routes/catalog.routes.js";
 import setPayload from "./helpers/setPayload.js";
@@ -50,6 +51,13 @@ app.get("/", (req, res) => {
             pathParams: [],
             queryParams: [],
         },
+        {
+            method: "GET",
+            path: "/animekiid",
+            description: "Animekiid (native animekiid.com)",
+            pathParams: [],
+            queryParams: [],
+        },
     ];
     res.json(setPayload(res, {
         data: { routes },
@@ -67,6 +75,7 @@ app.get("/sumber/status", async (req, res, next) => {
 app.use("/otakudesu", otakudesuRouter);
 app.use("/kuramanime", kuramanimeRouter);
 app.use("/samehadaku", samehadakuRouter);
+app.use("/animekiid", animekiidRouter);
 app.use("/katalog", catalogRouter);
 app.use(errorHandler);
 app.listen(PORT, () => {

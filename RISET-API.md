@@ -30,9 +30,16 @@ endpoint tidak ditulis "selesai" bila sumbernya belum terbukti menjawab.
    sembarangan. Statusnya dipantau lewat `/sumber/status`.
 
 4. **Animekiid (sumber baru) berbasis WordPress.** REST `wp-json`
-   terbuka tetapi hanya tipe standar (posts/pages), belum ada tipe
-   anime khusus yang bersih. Katalognya kemungkinan di posts/kategori;
-   perlu riset parser tersendiri sebelum dijanjikan sebagai endpoint.
+   terbuka tetapi hanya tipe standar (posts/pages), tidak ada tipe
+   anime khusus yang bersih. Bedah HTML dari VPS menunjukkan tema
+   yang mirip samehadaku.li: kartu arsip `.bsx`, detail `.spe`
+   berbahasa Indonesia, daftar episode `.epl-num`, dan player episode
+   berupa iframe. Route native `/animekiid` sekarang membaca home/
+   search/ongoing/completed/popular/movies/genres/detail/episode
+   langsung dari animekiid.com. Pagination arsip memakai pola
+   `?page=N&status=...&type=...&order=...`; schedule Animekiid belum
+   dikunci karena halaman jadwalnya tidak menyajikan daftar per hari
+   yang bersih di HTML awal.
 
 5. **Kuramanime** sudah punya parser di repo ini dan menjawab dari
    sebagian jaringan; dari IP VPS sempat kena challenge. Lihat
