@@ -47,6 +47,19 @@ endpoint tidak ditulis "selesai" bila sumbernya belum terbukti menjawab.
    dan membalas daftar kosong sebagai 200 (bukan 404) bila memang
    tidak ketemu.
 
+7. **Daftar dan detail Samehadaku dilanjutkan native.** Uji satu-satu
+   pada 2026-10-08 menunjukkan parser engine lama membalas 404 untuk
+   ongoing, completed, popular, movies, genres, dan detail slug dari
+   samehadaku.li. Route-route itu sekarang dibaca langsung di wajik:
+   archive `/anime/?status=...&type=...&order=...&page=...` untuk
+   ongoing/completed/popular/movies, taxonomy `/genres/{slug}` untuk
+   genre, dan detail `/anime/{slug}` digabung dengan REST WordPress.
+   Detail One Piece mengembalikan jendela episode terbaru yang memang
+   disajikan halaman sumber (episode 1086–1180 saat diuji), bukan
+   mengarang total episode. Yang masih jujur belum selesai: schedule
+   samehadaku.li belum ditemukan halaman resminya, dan episode/server
+   masih perlu parser native tersendiri.
+
 ## Endpoint status sumber
 
 `GET /sumber/status` memeriksa tiap sumber dari server yang menjalankan
