@@ -530,6 +530,70 @@ const samehadakuController = {
     }
   },
 
+  /* Detail episode native (riset Hermes 2026-10-09):
+     Tema v2 samehadaku.li menyajikan 1 iframe default (#pembed .player-embed)
+     dan navigasi prev/next (.naveps). Daftar server eksternal kini dimuat
+     via ajax tema (tsMedia) sehingga tidak lagi ada di HTML statis —
+     server hanya dilaporkan bila benar-benar ada di markup. */
+  async episodeNative(req: Request, res: Response, next: NextFunction) {
+    try {
+      const episodeId = String(req.params.episodeId || "").trim();
+      if (!episodeId) {
+        res.status(400).json(setPayload(res, { message: "episodeId wajib diisi" }));
+        return;
+      }
+
+      const pathname = `/${episodeId}/`;
+      const html = await getHTML(baseUrl, pathname);
+      const root = parse(html) as unknown as HTMLElement;
+
+      const title = textOf(root.querySelector("h1.entry-title") || root.querySelector(".title h1") || root.querySelector("title"));
+      const iframeEl = root.querySelectorAll("iframe").map((f) => f.getAttribute("src") || "").find(Boolean) || "";
+
+      const nav = {
+        all: root.querySelector('.naveps .nvsc a')?.getAttribute("href") || "",
+        next: root.querySelector('a[rel="next"]')?.getAttribute("href") || "",
+        prev: root.querySelector('a[rel="prev"]')?.getAttribute("href") || "",
+      };
+
+      const embedList = root
+        .querySelectorAll("#pembed iframe, .player-embed iframe")
+        .map((f) => f.getAttribute("src") || "")
+        .filter(Boolean);
+
+      const serverList = root
+        .querySelectorAll(".serverlist li a, .servers li a, .server-option a")
+        .map((a) => ({
+          label: textOf(a),
+          url: a.getAttribute("href") || "",
+        }))
+        .filter((s) => s.url);
+
+      const releasedOn = textOf(root.querySelector(".epxdate, .released, .lftinfo span em")) || "";
+
+      res.json(
+        setPayload(res, {
+          data: {
+            episodeId,
+            title,
+            href: `/samehadaku/episode/${episodeId}`,
+            samehadakuUrl: new URL(pathname, baseUrl).toString(),
+            releasedOn,
+            embedList,
+            defaultEmbed: iframeEl,
+            serverList,
+            navigation: nav,
+            note: embedList.length || serverList.length
+              ? "Sumber native samehadaku.li"
+              : "Server eksternal tidak tersedia di HTML statis (dimuat via ajax tema)",
+          },
+        })
+      );
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async proxy(req: Request, res: Response, next: NextFunction) {
     try {
       const target = new URL(`/samehadaku${req.path}`, apiBaseUrl);

@@ -16,6 +16,7 @@ samehadakuRouter.get("/movies", serverCache(10), samehadakuController.moviesNati
 samehadakuRouter.get("/genres", serverCache(30), samehadakuController.genresNative);
 samehadakuRouter.get("/genres/:genreId", serverCache(10), samehadakuController.genreAnimesNative);
 samehadakuRouter.get("/anime/:animeId", serverCache(10), samehadakuController.animeDetailsNative);
+samehadakuRouter.get("/episode/:episodeId", serverCache(10), samehadakuController.episodeNative);
 /* Sisa sub-route yang masih memakai engine (home, anime list, recent,
    schedule, batch, episode/:id, server/:id, ...). */
 samehadakuRouter.use(serverCache(5), samehadakuController.proxy);
