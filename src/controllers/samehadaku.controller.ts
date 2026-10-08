@@ -548,7 +548,6 @@ const samehadakuController = {
       const root = parse(html) as unknown as HTMLElement;
 
       const title = textOf(root.querySelector("h1.entry-title") || root.querySelector(".title h1") || root.querySelector("title"));
-      const iframeEl = root.querySelectorAll("iframe").map((f) => f.getAttribute("src") || "").find(Boolean) || "";
 
       const nav = {
         all: root.querySelector('.naveps .nvsc a')?.getAttribute("href") || "",
@@ -556,10 +555,15 @@ const samehadakuController = {
         prev: root.querySelector('a[rel="prev"]')?.getAttribute("href") || "",
       };
 
+      /* LiteSpeed menaruh URL embed asli di data-litespeed-src dan
+         menyisakan src="about:blank"; jangan laporkan placeholder itu
+         sebagai embed. */
       const embedList = root
         .querySelectorAll("#pembed iframe, .player-embed iframe")
-        .map((f) => f.getAttribute("src") || "")
-        .filter(Boolean);
+        .map((f) => f.getAttribute("data-litespeed-src") || f.getAttribute("data-src") || f.getAttribute("src") || "")
+        .map((url) => url.trim())
+        .filter((url) => url && url !== "about:blank");
+      const iframeEl = embedList[0] || "";
 
       const serverList = root
         .querySelectorAll(".serverlist li a, .servers li a, .server-option a")
@@ -569,7 +573,9 @@ const samehadakuController = {
         }))
         .filter((s) => s.url);
 
-      const releasedOn = textOf(root.querySelector(".epxdate, .released, .lftinfo span em")) || "";
+      const speReleased = parseSpe(root)["released on"] || "";
+      const episodeDate = (root.querySelector(".headlist")?.text || "").match(/Eps\s+\d+\s*-\s*([A-Za-z]+\s+\d{1,2},\s+\d{4})/)?.[1] || "";
+      const releasedOn = textOf(root.querySelector(".epxdate, .released, .lftinfo span em")) || episodeDate || speReleased;
 
       res.json(
         setPayload(res, {
