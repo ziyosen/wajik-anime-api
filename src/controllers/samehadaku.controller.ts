@@ -6,6 +6,7 @@ import setPayload from "@helpers/setPayload.js";
 import getHTML, { userAgent } from "@helpers/getHTML.js";
 
 const { baseUrl, apiBaseUrl } = samehadakuConfig;
+const SAMEHADAKU_V2_URL = "https://v2.samehadaku.how";
 
 /* Samehadaku di wajik (riset 2026-10-08):
    Parser Samehadaku yang terbukti jalan ada di bellonime-api-backup
@@ -425,6 +426,48 @@ async function getNativeAnimeDetails(animeId: string) {
   };
 }
 
+async function getNativeSchedule() {
+  const html = await getHTML(SAMEHADAKU_V2_URL, "/jadwal/");
+  const root = parse(html) as unknown as HTMLElement;
+  const days = root
+    .querySelectorAll("div[x-show]")
+    .map((block) => {
+      const show = block.getAttribute("x-show") || "";
+      const daySlug = show.match(/activeDay\s*===\s*'([a-z]+)'/)?.[1] || "";
+      if (!daySlug) return null;
+
+      const animeList = block
+        .querySelectorAll(".animepost")
+        .map((card) => {
+          const anchor = card.querySelector("a[href*='/anime/']");
+          const sourceUrl = anchor?.getAttribute("href") || "";
+          const animeId = slugFromAnimeUrl(sourceUrl);
+          const title = textOf(card.querySelector("h2")) || anchor?.getAttribute("title") || titleFromSlug(animeId);
+          const genres = textOf(card.querySelector(".data .type"));
+          return {
+            title,
+            poster: realImageUrl(card.querySelector("img")),
+            type: textOf(card.querySelector(".content-thumb .type")),
+            score: textOf(card.querySelector(".score")).replace("★", "").trim(),
+            estimation: textOf(card.querySelector(".ltseps")),
+            animeId,
+            href: `/samehadaku/anime/${animeId}`,
+            samehadakuUrl: sourceUrl,
+            genres,
+          };
+        })
+        .filter((card) => card.animeId);
+
+      return {
+        day: daySlug.replace(/^./, (c) => c.toUpperCase()),
+        animeList,
+      };
+    })
+    .filter(Boolean);
+
+  return { days };
+}
+
 const samehadakuController = {
   async getRoot(req: Request, res: Response, next: NextFunction) {
     const routes: IRouteData[] = [
@@ -436,7 +479,7 @@ const samehadakuController = {
       { method: "GET", path: "/samehadaku/movies", description: "Anime movie (native samehadaku.li)", pathParams: [], queryParams: [] },
       { method: "GET", path: "/samehadaku/genres", description: "Semua genre (native samehadaku.li)", pathParams: [], queryParams: [] },
       { method: "GET", path: "/samehadaku/genres/{genreId}", description: "Anime per genre (native samehadaku.li)", pathParams: [], queryParams: [] },
-      { method: "GET", path: "/samehadaku/schedule", description: "Jadwal rilis (masih engine bellonime)", pathParams: [], queryParams: [] },
+      { method: "GET", path: "/samehadaku/schedule", description: "Jadwal rilis (native v2.samehadaku.how)", pathParams: [], queryParams: [] },
       { method: "GET", path: "/samehadaku/search", description: "Pencarian (native samehadaku.li)", pathParams: [], queryParams: [] },
       { method: "GET", path: "/samehadaku/anime/{animeId}", description: "Detail anime (native samehadaku.li)", pathParams: [], queryParams: [] },
       { method: "GET", path: "/samehadaku/episode/{episodeId}", description: "Detail episode (engine bellonime)", pathParams: [], queryParams: [] },
@@ -524,6 +567,15 @@ const samehadakuController = {
   async animeDetailsNative(req: Request, res: Response, next: NextFunction) {
     try {
       const data = await getNativeAnimeDetails(String(req.params.animeId || ""));
+      res.json(setPayload(res, { data }));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async scheduleNative(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await getNativeSchedule();
       res.json(setPayload(res, { data }));
     } catch (err) {
       next(err);

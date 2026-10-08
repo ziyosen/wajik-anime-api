@@ -56,9 +56,9 @@ endpoint tidak ditulis "selesai" bila sumbernya belum terbukti menjawab.
    genre, dan detail `/anime/{slug}` digabung dengan REST WordPress.
    Detail One Piece mengembalikan jendela episode terbaru yang memang
    disajikan halaman sumber (episode 1086–1180 saat diuji), bukan
-   mengarang total episode. Yang masih jujur belum selesai: schedule
-   samehadaku.li belum ditemukan halaman resminya, dan episode/server
-   masih perlu parser native tersendiri.
+   mengarang total episode. Schedule sekarang dibaca native dari
+   halaman `/jadwal/` v2.samehadaku.how (struktur Alpine per hari);
+   episode/server masih perlu parser native tersendiri.
 
 ## Endpoint status sumber
 
