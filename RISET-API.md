@@ -58,7 +58,12 @@ endpoint tidak ditulis "selesai" bila sumbernya belum terbukti menjawab.
    disajikan halaman sumber (episode 1086–1180 saat diuji), bukan
    mengarang total episode. Schedule sekarang dibaca native dari
    halaman `/jadwal/` v2.samehadaku.how (struktur Alpine per hari);
-   episode/server masih perlu parser native tersendiri.
+   episode sudah native dari samehadaku.li. Batch sekarang juga
+   native dari v2: daftar `/daftar-batch/` dan `/daftar-batch/page/N/`
+   memakai kartu `.animepost`, sedangkan detail `/batch/{slug}/`
+   membaca grup unduhan `#downloadb` per format/kualitas dari halaman
+   sumber. Server detail gaya lama tidak dipaksakan untuk .li karena
+   HTML statisnya hanya menyajikan embed bawaan episode.
 
 ## Endpoint status sumber
 

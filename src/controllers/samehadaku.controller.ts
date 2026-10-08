@@ -426,6 +426,129 @@ async function getNativeAnimeDetails(animeId: string) {
   };
 }
 
+interface INativeBatchCard {
+  title: string;
+  poster: string;
+  type: string;
+  score: string;
+  status: string;
+  batchId: string;
+  href: string;
+  samehadakuUrl: string;
+  genreList: ReturnType<typeof genreCardFromSlug>[];
+}
+
+function parseBatchCards(root: HTMLElement): INativeBatchCard[] {
+  return root
+    .querySelectorAll(".animepost")
+    .map((card) => {
+      const anchor = card.querySelector("a[href*='/batch/']");
+      const sourceUrl = anchor?.getAttribute("href") || "";
+      const batchId = slugFromRootUrl(sourceUrl);
+      return {
+        title: textOf(card.querySelector("h2")) || anchor?.getAttribute("title") || titleFromSlug(batchId),
+        poster: realImageUrl(card.querySelector("img")),
+        type: textOf(card.querySelector(".content-thumb .type")),
+        score: textOf(card.querySelector(".score")).replace("★", "").trim(),
+        status: textOf(card.querySelector(".data .type")),
+        batchId,
+        href: `/samehadaku/batch/${batchId}`,
+        samehadakuUrl: sourceUrl,
+        genreList: [],
+      };
+    })
+    .filter((card) => card.batchId);
+}
+
+async function getNativeBatches(page: number) {
+  const pathname = page > 1 ? `/daftar-batch/page/${page}/` : "/daftar-batch/";
+  const html = await getHTML(SAMEHADAKU_V2_URL, pathname);
+  const root = parse(html) as unknown as HTMLElement;
+  const batchList = parseBatchCards(root);
+  const hasNextPage = root
+    .querySelectorAll("a")
+    .some((a) => (a.getAttribute("href") || "").includes(`/daftar-batch/page/${page + 1}/`));
+
+  return { batchList, pagination: makePagination(page, hasNextPage) };
+}
+
+function parseBatchDownloadFormats(root: HTMLElement) {
+  const box = root.querySelector("#downloadb");
+  if (!box) return [];
+
+  const formats: { title: string; qualities: { title: string; urls: { title: string; url: string }[] }[] }[] = [];
+  let current: (typeof formats)[number] | null = null;
+
+  for (const child of box.childNodes as unknown as HTMLElement[]) {
+    const tag = String(child.tagName || "").toUpperCase();
+    if (tag === "P") {
+      const title = textOf(child) || "Download";
+      current = { title, qualities: [] };
+      formats.push(current);
+      continue;
+    }
+    if (tag !== "UL") continue;
+    if (!current) {
+      current = { title: "Download", qualities: [] };
+      formats.push(current);
+    }
+
+    child.querySelectorAll("li").forEach((li) => {
+      const quality = textOf(li.querySelector("strong")) || "Batch";
+      const urls = li
+        .querySelectorAll("a")
+        .map((a) => ({ title: textOf(a), url: a.getAttribute("href") || "" }))
+        .filter((link) => link.url);
+      if (urls.length) current?.qualities.push({ title: quality, urls });
+    });
+  }
+
+  return formats.filter((format) => format.qualities.length);
+}
+
+async function getNativeBatchDetails(batchId: string) {
+  const slug = slugify(batchId);
+  const html = await getHTML(SAMEHADAKU_V2_URL, `/batch/${slug}/`);
+  const root = parse(html) as unknown as HTMLElement;
+  const title = textOf(root.querySelector("h1.entry-title")) || titleFromSlug(slug);
+  const poster = realImageUrl(root.querySelector(".thumb img") || root.querySelector(".infoanime img") || root.querySelector("article img"));
+  const synopsisText = textOf(root.querySelector(".episodeinf .areainfo") || root.querySelector(".episodeinf"));
+  const recommendedAnimeList = parseBatchCards(root)
+    .filter((batch) => batch.batchId !== slug)
+    .slice(0, 5)
+    .map((batch) => ({
+      title: batch.title,
+      poster: batch.poster,
+      animeId: batch.batchId,
+      href: batch.href,
+      samehadakuUrl: batch.samehadakuUrl,
+    }));
+
+  return {
+    title,
+    animeId: "",
+    poster,
+    japanese: "",
+    synonyms: [],
+    english: "",
+    status: "",
+    type: "Batch",
+    source: "Samehadaku v2",
+    score: "",
+    duration: "",
+    episodes: "",
+    season: "",
+    studios: [],
+    producers: [],
+    aired: "",
+    releasedOn: textOf(root.querySelector(".time-post")),
+    synopsis: { paragraphs: synopsisText ? [synopsisText] : [], connections: [] },
+    genreList: [],
+    downloadUrl: { formats: parseBatchDownloadFormats(root) },
+    recommendedAnimeList,
+  };
+}
+
 async function getNativeSchedule() {
   const html = await getHTML(SAMEHADAKU_V2_URL, "/jadwal/");
   const root = parse(html) as unknown as HTMLElement;
@@ -482,7 +605,9 @@ const samehadakuController = {
       { method: "GET", path: "/samehadaku/schedule", description: "Jadwal rilis (native v2.samehadaku.how)", pathParams: [], queryParams: [] },
       { method: "GET", path: "/samehadaku/search", description: "Pencarian (native samehadaku.li)", pathParams: [], queryParams: [] },
       { method: "GET", path: "/samehadaku/anime/{animeId}", description: "Detail anime (native samehadaku.li)", pathParams: [], queryParams: [] },
-      { method: "GET", path: "/samehadaku/episode/{episodeId}", description: "Detail episode (engine bellonime)", pathParams: [], queryParams: [] },
+      { method: "GET", path: "/samehadaku/batch", description: "Daftar batch (native v2.samehadaku.how)", pathParams: [], queryParams: [] },
+      { method: "GET", path: "/samehadaku/batch/{batchId}", description: "Detail batch + link unduhan (native v2.samehadaku.how)", pathParams: [], queryParams: [] },
+      { method: "GET", path: "/samehadaku/episode/{episodeId}", description: "Detail episode (native samehadaku.li)", pathParams: [], queryParams: [] },
     ];
 
     res.json(
@@ -576,6 +701,24 @@ const samehadakuController = {
   async scheduleNative(req: Request, res: Response, next: NextFunction) {
     try {
       const data = await getNativeSchedule();
+      res.json(setPayload(res, { data }));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async batchesNative(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { batchList, pagination } = await getNativeBatches(pageFromRequest(req));
+      res.json(setPayload(res, { data: { batchList }, pagination }));
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async batchDetailsNative(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await getNativeBatchDetails(String(req.params.batchId || ""));
       res.json(setPayload(res, { data }));
     } catch (err) {
       next(err);
