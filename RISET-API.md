@@ -38,6 +38,15 @@ endpoint tidak ditulis "selesai" bila sumbernya belum terbukti menjawab.
    sebagian jaringan; dari IP VPS sempat kena challenge. Lihat
    `/sumber/status` untuk kejujuran status per server.
 
+6. **Pencarian Samehadaku diperbaiki native di wajik.** Parser lama
+   membaca kartu `.animpost` dari halaman `?s=...`; tema samehadaku.li
+   sekarang tidak menyajikan hasil dengan struktur itu, jadi API lama
+   membalas 404 kosong. samehadaku.li membuka REST WordPress dengan
+   tipe khusus `anime`, jadi `/samehadaku/search` sekarang mengambil
+   `/wp-json/wp/v2/anime?search=...`, melengkapi poster dari media,
+   dan membalas daftar kosong sebagai 200 (bukan 404) bila memang
+   tidak ketemu.
+
 ## Endpoint status sumber
 
 `GET /sumber/status` memeriksa tiap sumber dari server yang menjalankan

@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import samehadakuConfig from "@configs/samehadaku.config.js";
 import setPayload from "@helpers/setPayload.js";
-import { userAgent } from "@helpers/getHTML.js";
+import getHTML, { userAgent } from "@helpers/getHTML.js";
 
 const { baseUrl, apiBaseUrl } = samehadakuConfig;
 
@@ -24,6 +24,153 @@ async function readRawBody(req: Request): Promise<Buffer | undefined> {
   return chunks.length ? Buffer.concat(chunks) : undefined;
 }
 
+/* Pencarian Samehadaku native (riset lanjutan 2026-10-08):
+   Parser lama di engine bellonime membaca kartu `.animpost` dari
+   halaman `?s=...`, tetapi tema samehadaku.li sekarang tidak memakai
+   struktur itu untuk hasil pencarian — API balas 404 kosong walau
+   judulnya ada. Jalur yang terbukti bersih adalah REST bawaan
+   WordPress: tipe khusus `anime` terbuka di `/wp-json/wp/v2/anime`.
+   Hasil kosong sekarang dibalas 200 + daftar kosong (bukan 404),
+   supaya UI bisa membedakan "tidak ketemu" dari "API rusak". */
+const SEARCH_PER_PAGE = 20;
+
+interface IWpAnimeItem {
+  slug?: string;
+  link?: string;
+  featured_media?: number;
+  class_list?: string[];
+  title?: { rendered?: string };
+}
+
+function decodeEntities(text = ""): string {
+  return text
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)))
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;|&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+async function fetchWpJson(pathname: string): Promise<any> {
+  const url = new URL(pathname, baseUrl);
+
+  /* REST adalah API JSON publik; coba fetch biasa dulu (cepat), dan
+     hanya jatuh ke pengambil ala browser bila diblokir/gagal. */
+  try {
+    const response = await fetch(url, {
+      headers: { Accept: "application/json", "User-Agent": userAgent },
+      signal: AbortSignal.timeout(20_000),
+    });
+    const text = await response.text();
+    if (!response.ok) throw new Error(`REST menjawab ${response.status}`);
+    return JSON.parse(text);
+  } catch {
+    const raw = await getHTML(baseUrl, pathname);
+    return JSON.parse(raw);
+  }
+}
+
+async function posterMap(items: IWpAnimeItem[]): Promise<Map<number, string>> {
+  const ids = [...new Set(items.map((item) => item.featured_media).filter(Boolean))] as number[];
+  const map = new Map<number, string>();
+  if (!ids.length) return map;
+
+  try {
+    const media = await fetchWpJson(
+      `/wp-json/wp/v2/media?include=${ids.join(",")}&per_page=${ids.length}&_fields=id,source_url`
+    );
+    if (Array.isArray(media)) {
+      media.forEach((item: any) => {
+        if (item?.id && item?.source_url) map.set(Number(item.id), String(item.source_url));
+      });
+    }
+  } catch {
+    /* Poster hanya pelengkap; gagal ambil poster tidak menggagalkan pencarian. */
+  }
+
+  return map;
+}
+
+function wpAnimeToCard(item: IWpAnimeItem, posters: Map<number, string>) {
+  const slug = String(item.slug || "");
+  const sourceUrl = String(item.link || `${baseUrl}/anime/${slug}/`);
+  const classes = Array.isArray(item.class_list) ? item.class_list : [];
+  const genreList = classes
+    .filter((cls) => cls.startsWith("genres-"))
+    .map((cls) => cls.replace(/^genres-/, ""))
+    .filter(Boolean)
+    .map((genreSlug) => ({
+      title: decodeEntities(genreSlug.replace(/-/g, " ")),
+      genreId: genreSlug,
+      href: `/samehadaku/genres/${genreSlug}`,
+      samehadakuUrl: `${baseUrl}/genre/${genreSlug}/`,
+    }));
+
+  return {
+    title: decodeEntities(item.title?.rendered || slug.replace(/-/g, " ")),
+    poster: item.featured_media ? posters.get(Number(item.featured_media)) || "" : "",
+    type: "",
+    score: "",
+    status: "",
+    animeId: slug,
+    href: `/samehadaku/anime/${slug}`,
+    samehadakuUrl: sourceUrl,
+    genreList,
+  };
+}
+
+async function searchSamehadakuRest(q: string, page: number) {
+  const params = new URLSearchParams({
+    search: q,
+    page: String(page),
+    per_page: String(SEARCH_PER_PAGE),
+    _fields: "slug,link,title,featured_media,class_list",
+  });
+  const rawItems = await fetchWpJson(`/wp-json/wp/v2/anime?${params.toString()}`);
+  let items: IWpAnimeItem[] = Array.isArray(rawItems) ? rawItems : [];
+
+  /* WP REST kadang melewatkan judul yang slug-nya persis sama dengan
+     kata kunci tanpa spasi (mis. "onepiece"). Coba slug langsung. */
+  if (!items.length) {
+    const slug = slugify(q);
+    if (slug) {
+      const bySlug = await fetchWpJson(
+        `/wp-json/wp/v2/anime?slug=${encodeURIComponent(slug)}&_fields=slug,link,title,featured_media,class_list`
+      );
+      if (Array.isArray(bySlug)) items = bySlug;
+    }
+  }
+
+  const posters = await posterMap(items);
+  const animeList = items.map((item) => wpAnimeToCard(item, posters));
+  const hasNextPage = items.length === SEARCH_PER_PAGE;
+
+  return {
+    animeList,
+    pagination: {
+      currentPage: page,
+      prevPage: page > 1 ? page - 1 : null,
+      hasPrevPage: page > 1,
+      nextPage: hasNextPage ? page + 1 : null,
+      hasNextPage,
+      totalPages: hasNextPage ? null : page,
+    } as IPagination,
+  };
+}
+
 const samehadakuController = {
   async getRoot(req: Request, res: Response, next: NextFunction) {
     const routes: IRouteData[] = [
@@ -41,6 +188,23 @@ const samehadakuController = {
         data: { sourceUrl: baseUrl, engine: apiBaseUrl, routes },
       })
     );
+  },
+
+  async searchNative(req: Request, res: Response, next: NextFunction) {
+    try {
+      const q = String(req.query.q || req.query.search || "").trim();
+      const page = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10) || 1);
+
+      if (!q) {
+        res.status(400).json(setPayload(res, { message: "query q wajib diisi" }));
+        return;
+      }
+
+      const { animeList, pagination } = await searchSamehadakuRest(q, page);
+      res.json(setPayload(res, { data: { animeList }, pagination }));
+    } catch (err) {
+      next(err);
+    }
   },
 
   async proxy(req: Request, res: Response, next: NextFunction) {
