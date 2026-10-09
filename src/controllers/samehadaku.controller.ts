@@ -278,6 +278,47 @@ async function searchSamehadakuRest(q: string, page: number) {
   const animeList = items.map((item) => wpAnimeToCard(item, posters));
   const hasNextPage = items.length === SEARCH_PER_PAGE;
 
+  /* Fallback riset 2026-10-09: samehadaku.li memang tidak menyimpan
+     beberapa judul (mis. "naruto"), tetapi mirror v2.samehadaku.how
+     punya semuanya. Kalau WP REST kosong, coba HTML v2 (pola sama
+     dengan parser batch native). Selector v2: .animepost langsung. */
+  if (!animeList.length) {
+    const v2Pathname = page > 1 ? `/page/${page}/?s=${encodeURIComponent(q)}` : `/?s=${encodeURIComponent(q)}`;
+    const html = await getHTML(SAMEHADAKU_V2_URL, v2Pathname);
+    const root = parse(html) as unknown as HTMLElement;
+    const v2List = root
+      .querySelectorAll(".animpost .animepost, .animepost")
+      .map((card) => {
+        const anchor = card.querySelector(".animposx a, a[href*='/anime/']");
+        const sourceUrl = anchor?.getAttribute("href") || "";
+        const animeId = slugFromRootUrl(sourceUrl);
+        return {
+          title:
+            decodeEntities(textOf(card.querySelector(".animposx .data .title"))) ||
+            decodeEntities(textOf(card.querySelector("h2"))) ||
+            titleFromSlug(animeId),
+          poster: realImageUrl(card.querySelector(".animposx .content-thumb img")) || realImageUrl(card.querySelector("img")),
+          status: textOf(card.querySelector(".animposx .data .type")),
+          type: textOf(card.querySelector(".animposx .content-thumb .type")),
+          score: textOf(card.querySelector(".animposx .content-thumb .score")).replace("★", "").trim(),
+          animeId,
+          href: `/samehadaku/anime/${animeId}`,
+          samehadakuUrl: sourceUrl,
+          genreList: [],
+        };
+      })
+      .filter((card) => card.animeId);
+    if (v2List.length) {
+      const hasNextV2 = root
+        .querySelectorAll("a")
+        .some((a) => (a.getAttribute("href") || "").includes(`/page/${page + 1}/`));
+      return {
+        animeList: v2List,
+        pagination: makePagination(page, hasNextV2, hasNextV2 ? null : page),
+      };
+    }
+  }
+
   return {
     animeList,
     pagination: makePagination(page, hasNextPage, hasNextPage ? null : page),
