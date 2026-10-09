@@ -369,6 +369,38 @@ async function getNativeAnimeDetails(animeId) {
     })
         .filter((ep) => ep.episodeId)
         .sort((a, b) => Number(a.title || 0) - Number(b.title || 0));
+    // Halaman detail sumber kadang telat memperbarui daftar episodenya,
+    // padahal halaman episode terbaru sudah terbit. Lengkapi dengan menebak
+    // nomor berikutnya dari pola slug episode terakhir (maks 3 nomor),
+    // dan hanya terima bila halaman episodenya benar-benar ada.
+    if (episodeList.length) {
+        const numbered = episodeList.filter((ep) => typeof ep.title === "number" && ep.title > 0);
+        if (numbered.length) {
+            const lastEp = numbered[numbered.length - 1];
+            const lastNum = Number(lastEp.title);
+            for (let nextNum = lastNum + 1; nextNum <= lastNum + 3; nextNum += 1) {
+                const candidateId = lastEp.episodeId.replace(new RegExp(`-episode-${lastNum}(-|$)`), `-episode-${nextNum}$1`);
+                if (candidateId === lastEp.episodeId)
+                    break;
+                try {
+                    const epHtml = await getHTML(baseUrl, `/${candidateId}/`);
+                    if (!epHtml || !epHtml.includes(candidateId))
+                        break;
+                    episodeList.push({
+                        title: nextNum,
+                        episodeId: candidateId,
+                        href: `/samehadaku/episode/${candidateId}`,
+                        samehadakuUrl: `${baseUrl}/${candidateId}/`,
+                        releasedOn: "",
+                    });
+                }
+                catch {
+                    break;
+                }
+            }
+            episodeList.sort((a, b) => Number(a.title || 0) - Number(b.title || 0));
+        }
+    }
     const batchList = root
         .querySelectorAll('a[href*="/batch/"]')
         .map((a) => {
